@@ -7,4 +7,5 @@ It is a work-in-progress, and the current specs are:
 - A very basic machine code monitor in ROM
 - Input and output via serial IO
 #### What's provided
-I am providing all the files under an MIT license for the hardware and the software.
+I am providing all the files under an MIT license for the hardware and the software, with the following exceptions:
+- BBC Basic: This is provided under a zlib license by R.T.Russell
