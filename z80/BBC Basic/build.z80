@@ -1,0 +1,18 @@
+			ORG 0x8200
+
+			MODULE BUILD
+
+			CALL    TELL
+			DEFM	"BSX Breadboard Computer 0.1\n\r"
+			DEFM	"\n\r"
+			DEFB    0
+
+			include "main.z80"
+			include "exec.z80"
+			include "eval.z80"
+			include "fpp.z80"
+			include "sorry.z80"
+			include "patch.z80"
+			include "ram.z80"
+
+@USER:  		ENDMODULE

@@ -1,0 +1,112 @@
+			MODULE PATCH
+
+; CLRSCN: clears the screen.
+;
+@CLRSCN:		RET
+
+; PUTIME: set current time to DE:HL, in centiseconds.
+;
+@PUTIME:		RET
+
+; GETIME: return current time in DE:HL, in centiseconds.
+;
+@GETIME:		LD DE, 0
+ 	  		LD HL, 0
+			RET
+
+; PUTCSR: move to cursor to x=DE, y=HL
+;
+@PUTCSR:		RET
+
+; GETCSR: return cursor position in x=DE, y=HL
+;
+@GETCSR:		LD DE,0
+			LD HL,0
+			RET
+
+; OSRDCH: read a character in from the keyboard
+;
+@OSRDCH:		IN A,(0)
+			RET		
+
+; PROMPT: output the input prompt
+;
+@PROMPT: 		LD A,'>'
+
+; OSWRCH: write a character out to the serial port
+;
+@OSWRCH:		OUT (0),A
+			RET 
+
+;OSKEY - Read key with time-limit, test for ESCape.
+;Main function is carried out in user patch.
+;   Inputs: HL = time limit (centiseconds)
+;  Outputs: Carry reset if time-out
+;           If carry set A = character
+; Destroys: A,H,L,F
+;
+@OSKEY:			DEC HL 
+			LD A,H
+			OR L
+			RET Z 
+			IN A,(0)
+			JR Z,@OSKEY
+			SCF 
+			RET	
+;
+;OSINIT - Initialise RAM mapping etc.
+;If BASIC is entered by BBCBASIC FILENAME then file
+;FILENAME.BBC is automatically CHAINed.
+;   Outputs: DE = initial value of HIMEM (top of RAM)
+;            HL = initial value of PAGE (user program)
+;            Z-flag reset indicates AUTO-RUN.
+;  Destroys: A,D,E,H,L,F
+;
+@OSINIT: 		XOR A
+         		LD DE,0xFFFF		;DE = HIMEM
+         		LD E,A             	;PAGE BOUNDARY
+         		LD HL,@USER
+         		RET	
+
+;
+;OSLINE - Read/edit a complete line, terminated by CR.
+;   Inputs: HL addresses destination buffer.
+;           (L=0)
+;  Outputs: Buffer filled, terminated by CR.
+;           A=0.
+; Destroys: A,B,C,D,E,H,L,F
+;
+@OSLINE:		IN A,(0)
+			OR A
+			JR Z,OSLINE
+			LD (HL),A
+			INC HL
+			CP 0x0D
+			JR Z,1F 
+			CALL OSWRCH
+			JR OSLINE 
+1:			CALL @CRLF
+			AND A
+			RET 
+
+; Stuff not implemented yet
+;
+@OSCLI:
+@OSBPUT:
+@OSBGET:
+@OSSTAT:
+@OSSHUT:
+@OSOPEN:
+@OSCALL:
+@OSSAVE:
+@OSLOAD:
+@GETPTR:
+@PUTPTR:
+@GETEXT:
+@RESET:
+@TEST20:
+@LTRAP:
+@TRAP:  
+			RET
+
+			ENDMODULE

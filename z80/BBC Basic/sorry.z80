@@ -1,0 +1,21 @@
+			MODULE SORRY
+	
+@CLG:
+@COLOUR:
+@DRAW:
+@ENVEL:
+@GCOL:
+@MODE:
+@MOVE:
+@PLOT:
+@SOUND:
+@ADVAL:
+@POINT:
+@GETIMS:
+@PUTIMS:
+			XOR     A
+			CALL    EXTERR
+			DEFM    'Sorry'
+			DEFB    0
+
+			ENDMODULE
