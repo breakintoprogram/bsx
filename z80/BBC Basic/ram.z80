@@ -39,5 +39,9 @@
 @ERR:			DEFS    1               ;ERROR NUMBER
 @LISTON:		DEFS    1               ;LISTO & OPT FLAG
 @INCREM:		DEFS    1               ;AUTO INCREMENT
+;
+; Added by me
+;
+@FLAGS			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED
 
 			ENDMODULE

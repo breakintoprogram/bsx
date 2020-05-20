@@ -1,4 +1,12 @@
-			ORG 0x8200
+;
+; Title:	BBC Basic for BSX - Main build file
+; Author:	Dean Belfield
+; Created:	16/05/2020
+; Last Updated:	20/05/2020
+;
+; Modinfo:
+;
+			ORG 0x9000
 
 			MODULE BUILD
 

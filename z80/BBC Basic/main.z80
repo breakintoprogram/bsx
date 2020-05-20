@@ -1927,8 +1927,8 @@ TEXT:			LD      A,(HL)
 			EX      (SP),HL
 			RET
 ;
-CR:			EQU     0DH
-LF:			EQU     0AH
-ESC:			EQU     1BH
+@CR:			EQU     0DH
+@LF:			EQU     0AH
+@ESC:			EQU     1BH
 	
 			ENDMODULE

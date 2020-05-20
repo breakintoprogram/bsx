@@ -1,4 +1,18 @@
+;
+; Title:	BBC Basic for BSX
+; Author:	Dean Belfield
+; Created:	16/05/2020
+; Last Updated:	20/05/2020
+;
+; Modinfo:
+; 20/05/2020:	Added minimal OSCLI command (*BYE)
+;		Uses RST instructions in latest ROM for I/O
+;
+			
 			MODULE PATCH
+
+PORT_STM_IO 		EQU	0x00			; The IO port for serial terminal IO
+PORT_STM_FLAGS		EQU	0x07			; Flags			
 
 ; CLRSCN: clears the screen.
 ;
@@ -26,7 +40,7 @@
 
 ; OSRDCH: read a character in from the keyboard
 ;
-@OSRDCH:		IN A,(0)
+@OSRDCH:		IN A,(PORT_STM_IO)
 			RET		
 
 ; PROMPT: output the input prompt
@@ -35,7 +49,7 @@
 
 ; OSWRCH: write a character out to the serial port
 ;
-@OSWRCH:		OUT (0),A
+@OSWRCH:		RST 16
 			RET 
 
 ;OSKEY - Read key with time-limit, test for ESCape.
@@ -49,11 +63,33 @@
 			LD A,H
 			OR L
 			RET Z 
-			IN A,(0)
+			IN A,(PORT_STM_IO)
 			JR Z,@OSKEY
+			CP 0x1B			; ESC
 			SCF 
-			RET	
-;
+			RET NZ
+ESCSET: 		PUSH    HL
+        		LD      HL,FLAGS
+        		BIT     6,(HL)          ; ESC DISABLED?
+        		JR      NZ,ESCDIS
+        		SET     7,(HL)          ; SET ESCAPE FLAG
+ESCDIS: 		POP     HL
+        		RET	
+ESCTEST:		IN A,(PORT_STM_IO)
+			OR A
+			RET Z
+			CP 0x1B			; ESC	
+			JR Z,ESCSET
+			RET
+
+@TRAP:			CALL ESCTEST
+@LTRAP:			LD A,(FLAGS)
+			OR A
+			RET P
+			LD HL,FLAGS 
+			RES 7,(HL)
+			JP ESCAPE
+
 ;OSINIT - Initialise RAM mapping etc.
 ;If BASIC is entered by BBCBASIC FILENAME then file
 ;FILENAME.BBC is automatically CHAINed.
@@ -76,9 +112,10 @@
 ;           A=0.
 ; Destroys: A,B,C,D,E,H,L,F
 ;
-@OSLINE:		IN A,(0)
-			OR A
+@OSLINE:		RST 8
 			JR Z,OSLINE
+			OR A 
+			JR Z,OSLINE 
 			LD (HL),A
 			INC HL
 			CP 0x0D
@@ -89,9 +126,88 @@
 			AND A
 			RET 
 
+;
+;OSCLI - Process an "operating system" command
+;
+@OSCLI: 		CALL    SKIPSP
+			CP      CR
+			RET     Z
+			CP      '|'
+			RET     Z
+			CP      '.'
+			JP      Z,DOT           ;*.
+			EX      DE,HL
+			LD      HL,COMDS
+OSCLI0:			LD      A,(DE)
+			CALL    UPPRC
+			CP      (HL)
+			JR      Z,OSCLI2
+			JR      C,HUH
+OSCLI1:			BIT     7,(HL)
+			INC     HL
+			JR      Z,OSCLI1
+			INC     HL
+			INC     HL
+			JR      OSCLI0
+;
+OSCLI2:			PUSH    DE
+OSCLI3:			INC     DE
+			INC     HL
+			LD      A,(DE)
+			CALL    UPPRC
+			CP      '.'             ;ABBREVIATED?
+			JR      Z,OSCLI4
+			XOR     (HL)
+			JR      Z,OSCLI3
+			CP      80H
+			JR      Z,OSCLI4
+			POP     DE
+			JR      OSCLI1
+;
+OSCLI4:			POP     AF
+		        INC     DE
+OSCLI5:			BIT     7,(HL)
+			INC     HL
+			JR      Z,OSCLI5
+			LD      A,(HL)
+			INC     HL
+			LD      H,(HL)
+			LD      L,A
+			PUSH    HL
+			EX      DE,HL
+			JP      SKIPSP
+
+HUH:    		LD      A,254
+        		CALL    EXTERR
+        		DEFM    'Bad command'
+        		DEFB    0			
+
+SKIPSP:			LD      A,(HL)
+        		CP      ' '
+        		RET     NZ
+        		INC     HL
+        		JR      SKIPSP	
+
+UPPRC:  		AND     7FH
+			CP      '`'
+			RET     C
+			AND     5FH             ;CONVERT TO UPPER CASE
+			RET					
+
+; OSCLI - *.
+DOT:			RET
+
+; OSCLI - *BYE
+;
+BYE:			JP 0
+
+COMDS:  		DEFM    'BY'
+			DEFB    'E'+80H
+			DEFW    BYE
+			DEFB	0FFH
+
 ; Stuff not implemented yet
 ;
-@OSCLI:
 @OSBPUT:
 @OSBGET:
 @OSSTAT:
@@ -104,9 +220,6 @@
 @PUTPTR:
 @GETEXT:
 @RESET:
-@TEST20:
-@LTRAP:
-@TRAP:  
 			RET
 
 			ENDMODULE
