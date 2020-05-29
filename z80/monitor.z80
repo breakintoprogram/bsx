@@ -1,20 +1,34 @@
+;
+; Title:	Z80 Monitor for BSX
+; Author:	Dean Belfield
+; Created:	12/05/2020
+; Last Updated:	28/05/2020
+;
+; Modinfo:
+; 22/05/2020:	Moved SYS_VARS to last page of RAM
+;		Added B option to jump to BBC Basic
+; 28/05/2020:	Added O(ut) and I(n) instructions
+;		Added ASCII column for memory dump
+;
+
 ; Defines
 ;
-ROM_START		EQU 	0x0000			
-RAM_START		EQU 	0x8000
+ROM_START		EQU 	0x0000			; Start of ROM	
+BAS_START		EQU	0x4000			; Location of BBC Basic in ROM
+RAM_START		EQU 	0x8000			; Start of RAM
+SYS_VARS		EQU	0xFF00			; System variable block
 
-SYS_VARS		EQU	RAM_START		; System variable block
-SYS_VARS_RAMTOP		EQU 	RAM_START + 0x00
-SYS_VARS_INPUT		EQU	RAM_START + 0x02
+SYS_VARS_RAMTOP		EQU 	SYS_VARS + 0x00
+SYS_VARS_INPUT		EQU	SYS_VARS + 0x02
 
 PORT_STM_IO 		EQU	0x00			; The IO port for serial terminal IO
-PORT_STM_DIAG		EQU	0x07			; Diagnostics port - not used yet
+PORT_STM_FLAGS		EQU	0x07			; Flags
 
 BUILD_ROM		EQU 	0			; Set to 1 to build for ROM, or 0 to build for RAM
 SKIP_MEMTEST		EQU	1			; Set to 1 to skip the memtest on boot - leave this until proper clock fitted
 
 			IF BUILD_ROM = 0
-			ORG 0x8200
+			ORG RAM_START
 			ELSE
 			ORG ROM_START
 ;
@@ -24,13 +38,15 @@ SKIP_MEMTEST		EQU	1			; Set to 1 to skip the memtest on boot - leave this until 
 			JP Start
 			DS 4
 ;
-; RST 08 - Output char to STM32
+; RST 08 - Read char from STM32 I/O
 ;
-			DS 8
+			JP Read_Char
+			DS 5
 ;
-; RST 10
+; RST 10 - Output char to STM32 I/O
 ;
-			DS 8
+			JP Print_Char
+			DS 5
 ;
 ; RST 18
 ;
@@ -91,13 +107,11 @@ Ready:			PUSH HL
 			CALL Print_String
 
 Input:			LD HL,SYS_VARS_INPUT		; Input buffer
-			ld B,0				; Cursor position
-Input_Loop:		IN A,(PORT_STM_IO)		; Read a key from the keyboard
+			LD B,0				; Cursor position
+Input_Loop:		RST 8				; Read a key from the keyboard
 			OR A				; Check for zero
 			JR Z,Input_Loop			; Loop - no key input yet
-
-			CALL Print_Char			; Output the character
-
+			RST 16				; Output the character
 			CP 0x7F: JR Z,Input_Backspace	; Handle backspace
 
 			LD (HL),A			; Store the character in the buffer
@@ -111,10 +125,16 @@ Input_Loop:		IN A,(PORT_STM_IO)		; Read a key from the keyboard
 			LD A,(SYS_VARS_INPUT)		; Check the first character of input
 			LD HL,Input_Ret			; Push the return address on the stack
 			PUSH HL
+			CP 'B': JP Z,FN_Basic
 			CP 'M': JP Z,FN_Memory_Dump
 			CP 'L': JP Z,FN_Memory_Load
 			CP 'J': JP Z,FN_Jump
-			POP HL				; Not jumped to anything, so pop the return address off the stack
+			CP 'O': JP Z,FN_Port_Out
+			CP 'I': JP Z,FN_Port_In
+			CP 0x0D
+			RET Z
+			LD HL,MSG_INVALID_CMD		; Unknown command error
+			JP Print_String 
 
 Input_Ret:		CALL Print_CR			; On return from the function, print a carriage return
 			LD HL,MSG_READY			; And the ready message
@@ -129,16 +149,63 @@ Input_Backspace:	LD A,B				; Are we on the first character?
 			LD (HL),0
 			JR Input_Loop
 
+FN_Basic:		JP BAS_START
+
 FN_Jump:		LD HL,SYS_VARS_INPUT+1
 			CALL Parse_Hex16
 			EX DE,HL
 			JP (HL)
 
-FN_Memory_Load:		IN A,(PORT_STM_IO): LD L,A
-			IN A,(PORT_STM_IO): LD H,A 
-			IN A,(PORT_STM_IO): LD C,A 
-			IN A,(PORT_STM_IO): LD B,A 
-1:			IN A,(PORT_STM_IO)
+FN_Port_Out:		LD HL,SYS_VARS_INPUT+1
+			CALL Parse_Hex16
+			LD A,(HL)
+			CP ','
+			JR NZ,4F
+			INC HL
+			PUSH DE
+			CALL Parse_Hex16
+			POP BC 
+			LD A,B
+			OR A
+			JR NZ,2F
+			LD A,D
+			OR A 
+			JR NZ,3F
+			OUT (C),E 
+			RET 
+
+2:			LD HL,MSG_INVALID_PORT
+			JP Print_String
+3:			LD HL,MSG_OUT_OF_RANGE
+			JP Print_String
+4:			LD HL,MSG_ERROR
+			JP Print_String
+
+FN_Port_In:		LD HL,SYS_VARS_INPUT+1
+			CALL Parse_Hex16
+			LD A,(HL)
+			CP ','
+			JR NZ,1F
+			INC HL
+			PUSH DE
+			CALL Parse_Hex16
+			POP BC 
+			LD A,B
+			OR A 
+			JR NZ,2F
+			LD A,D
+			OR E
+			JR NZ,Port_Dump
+1:			LD HL,MSG_ERROR
+			JP Print_String			
+2:			LD HL,MSG_INVALID_PORT
+			JP Print_String
+
+FN_Memory_Load:		RST 8: LD L,A
+			RST 8: LD H,A 
+			RST 8: LD C,A 
+			RST 8: LD B,A 
+1:			RST 8
 			LD (HL),A
 			INC HL
 			DEC BC
@@ -168,9 +235,24 @@ FN_Memory_Dump:		LD HL,SYS_VARS_INPUT+1
 Print_String:		LD A,(HL)
 			OR A
 			RET Z
-			CALL Print_Char
+			RST 16
 			INC HL
 			JP Print_String 
+
+; Dump some ports out
+;  C: Port
+; DE: Number of bytes to read
+;
+Port_Dump:		IN A,(C)
+			CALL Print_Hex8
+			DEC DE
+			LD A,D
+			OR E
+			RET Z
+			CALL Read_Char_NB
+			CP 0x1B
+			RET Z 
+			JR Port_Dump
 
 ; Dump some memory out
 ; HL: Start of memory to dump
@@ -178,23 +260,51 @@ Print_String:		LD A,(HL)
 ;
 Memory_Dump:		CALL Print_Hex16
 			LD A,':'
-			CALL Print_Char
+			RST 16
 			LD A,' '
-			CALL Print_Char
+			RST 16
 			LD B,16
+			LD IX,SYS_VARS_INPUT
+			LD (IX+0),' '
 1:			LD A,(HL)
+			PUSH AF
+			CP 32
+			JR NC,2F
+			LD A,'.'
+2:			LD (IX+1),A
+			INC IX
+			POP AF
 			CALL Print_Hex8 
 			INC HL
 			DEC DE
 			LD A,D
 			OR E
-			RET Z
-			IN A,(PORT_STM_IO)
+			JR Z,3F
+			CALL Read_Char_NB
 			CP 0x1B
-			RET Z
+			JR Z,3F
 			DJNZ 1B
-			CALL Print_CR
+			CALL 5F
 			JR Memory_Dump
+
+3:			LD A,B 
+			OR A
+			JR Z,5F
+			DEC B 
+			JR Z,5F
+			LD A,32
+4:			RST 16
+			RST 16
+			DJNZ 4B
+
+5:			LD (IX+1),0x0D
+			LD (IX+2),0x0A
+			LD (IX+3),0x00
+			PUSH HL
+			LD HL,SYS_VARS_INPUT
+			CALL Print_String
+			POP HL
+			RET
 
 ; Parse a hex string (up to 4 nibbles) to a binary
 ; HL: Address of hex (ASCII)
@@ -240,19 +350,30 @@ Print_Hex8:		LD C,A
 			DAA
 			ADC A,0x40
 			DAA
-			JR Print_Char 			
+			RST 16
+			RET 			
 
 ; Print CR/LF
 ;
 Print_CR:		LD A,0x0D
-			CALL Print_Char
+			RST 16
 			LD A,0x0A
-			JR Print_Char
+			RST 16
+			RET
 
 ; Print a single character
 ; A: ASCII character
 ;
 Print_Char:		OUT (PORT_STM_IO),A 
+			RET 
+
+; Read a character - waits for input
+; A: ASCII character
+;
+Read_Char:		IN A,(PORT_STM_FLAGS)
+			AND 0x01
+			JR Z,Read_Char
+Read_Char_NB:		IN A,(PORT_STM_IO)
 			RET 
 
 ; Messages
@@ -261,4 +382,7 @@ MSG_STARTUP:		DZ "BSX Version 0.1\n\r"
 MSG_READY:		DZ "Ready\n\r"
 MSG_BADRAM:		DZ "Mem Fault\n\r"
 MSG_ERROR:		DZ "Error\n\r"
+MSG_INVALID_CMD:	DZ "Invalid Command\n\r"
+MSG_INVALID_PORT:	DZ "Invalid Port #\n\r"
+MSG_OUT_OF_RANGE:	DZ "Value out of range\n\r"
 
