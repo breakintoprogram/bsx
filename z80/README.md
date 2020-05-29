@@ -9,9 +9,13 @@ This is provided under a zlib license - see the README in the folder for more de
 
 #### Monitor
 The monitor program provides the following functionality:
-Mnnnn,llll - Memory Hex Dump: Output llll bytes from memory location nnnn to port 0
-Jnnnn - Jump to location nnnn
-L - Put the monitor into Load mode; it will wait for a binary stream of data on port 0
+
+- Mnnnn,llll - Memory Hex Dump: Output llll bytes from memory location nnnn to port 0
+- Jnnnn - Jump to location nnnn
+- Onn,vv - O(utput) the value vv on Z80 port nn
+- Inn,llll - I(nput) llll values from Z80 port nn
+- L - Put the monitor into Load mode; it will wait for a binary stream of data on port 0
+- B - Jump to address 0x4000 (where BBC Basic can be loaded)
 
 #### Load data format
 When in Load mode, send bytes of data to load into RAM to the STM32 down the serial port in the
