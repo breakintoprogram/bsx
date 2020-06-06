@@ -1,0 +1,46 @@
+;
+; Title:	ROM specific code for Monitor
+; Author:	Dean Belfield
+; Created:	05/06/2020
+; Last Updated:	05/06/2020
+;
+; Modinfo:
+;
+
+;
+; RST 00
+;
+			DI
+			JP Start
+			DS 4
+;
+; RST 08 - Read char from STM32 I/O
+;
+			JP Read_Char
+			DS 5
+;
+; RST 10 - Output char to STM32 I/O
+;
+			JP Print_Char
+			DS 5
+;
+; RST 18
+;
+			DS 8
+;
+; RST 20
+; 
+			DS 8
+;
+; RST 28
+;
+			DS 8
+;
+; RST 30
+;
+			DS 8
+;
+; RST 38 - NMI
+;
+			EI
+			RET
