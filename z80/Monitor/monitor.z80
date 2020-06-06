@@ -2,74 +2,17 @@
 ; Title:	Z80 Monitor for BSX
 ; Author:	Dean Belfield
 ; Created:	12/05/2020
-; Last Updated:	28/05/2020
+; Last Updated:	03/06/2020
 ;
 ; Modinfo:
 ; 22/05/2020:	Moved SYS_VARS to last page of RAM
 ;		Added B option to jump to BBC Basic
 ; 28/05/2020:	Added O(ut) and I(n) instructions
 ;		Added ASCII column for memory dump
+; 29/05/2020:	O(ut) instruction now supports Hex and ASCII strings
+; 03/06/2020:	Added Z80 disassembler
 ;
 
-; Defines
-;
-ROM_START		EQU 	0x0000			; Start of ROM	
-BAS_START		EQU	0x4000			; Location of BBC Basic in ROM
-RAM_START		EQU 	0x8000			; Start of RAM
-SYS_VARS		EQU	0xFF00			; System variable block
-
-SYS_VARS_RAMTOP		EQU 	SYS_VARS + 0x00
-SYS_VARS_INPUT		EQU	SYS_VARS + 0x02
-
-PORT_STM_IO 		EQU	0x00			; The IO port for serial terminal IO
-PORT_STM_FLAGS		EQU	0x07			; Flags
-
-BUILD_ROM		EQU 	0			; Set to 1 to build for ROM, or 0 to build for RAM
-SKIP_MEMTEST		EQU	1			; Set to 1 to skip the memtest on boot - leave this until proper clock fitted
-
-			IF BUILD_ROM = 0
-			ORG RAM_START
-			ELSE
-			ORG ROM_START
-;
-; RST 00
-;
-			DI
-			JP Start
-			DS 4
-;
-; RST 08 - Read char from STM32 I/O
-;
-			JP Read_Char
-			DS 5
-;
-; RST 10 - Output char to STM32 I/O
-;
-			JP Print_Char
-			DS 5
-;
-; RST 18
-;
-			DS 8
-;
-; RST 20
-; 
-			DS 8
-;
-; RST 28
-;
-			DS 8
-;
-; RST 30
-;
-			DS 8
-;
-; RST 38 - NMI
-;
-			EI
-			RET
-
-			ENDIF 
 ;
 ; Start
 ;
@@ -77,7 +20,7 @@ Start:			IF SKIP_MEMTEST = 1
 			LD HL,0x0000
 			XOR A 
 			JR 3F 
-			ENDIF
+			ELSE 
 			LD HL,RAM_START
 			LD C,0b10101010
 1:			LD (HL),C
@@ -93,6 +36,7 @@ Start:			IF SKIP_MEMTEST = 1
 2:			LD A,H
 			OR A
 			JR NZ,1B
+			ENDIF
 3:			LD (SYS_VARS_RAMTOP),HL		; Store last byte of physical RAM in the system variables
 			LD SP,HL			; Set the stack pointer
 			JR Z,Memtest_OK
@@ -126,6 +70,7 @@ Input_Loop:		RST 8				; Read a key from the keyboard
 			LD HL,Input_Ret			; Push the return address on the stack
 			PUSH HL
 			CP 'B': JP Z,FN_Basic
+			CP 'D': JP Z,FN_Disassemble
 			CP 'M': JP Z,FN_Memory_Dump
 			CP 'L': JP Z,FN_Memory_Load
 			CP 'J': JP Z,FN_Jump
@@ -160,25 +105,35 @@ FN_Port_Out:		LD HL,SYS_VARS_INPUT+1
 			CALL Parse_Hex16
 			LD A,(HL)
 			CP ','
-			JR NZ,4F
+			JR NZ,FN_Port_Out_Err2
 			INC HL
-			PUSH DE
-			CALL Parse_Hex16
-			POP BC 
-			LD A,B
-			OR A
-			JR NZ,2F
 			LD A,D
-			OR A 
-			JR NZ,3F
+			OR A
+			JR NZ,FN_Port_Out_Err1
+			LD C,E 
+1:			LD A,(HL)
+			CP 0x0D	; CR
+			RET Z
+			CP 0x22 ; Quote
+			JR Z,2F
+			CALL Parse_Hex8
 			OUT (C),E 
-			RET 
+			JR 1B
 
-2:			LD HL,MSG_INVALID_PORT
+2:			INC HL 
+			LD A,(HL) 
+			CP 0x0D
+			RET Z
+			CP 0x22
+			JR Z,3F
+			OUT (C),A
+			JR 2B
+3:			INC HL
+			JR 1B
+
+FN_Port_Out_Err1:	LD HL,MSG_INVALID_PORT
 			JP Print_String
-3:			LD HL,MSG_OUT_OF_RANGE
-			JP Print_String
-4:			LD HL,MSG_ERROR
+FN_Port_Out_Err2:	LD HL,MSG_ERROR
 			JP Print_String
 
 FN_Port_In:		LD HL,SYS_VARS_INPUT+1
@@ -214,6 +169,24 @@ FN_Memory_Load:		RST 8: LD L,A
 			JR NZ,1B
 			RET 
 
+FN_Disassemble:		LD HL,SYS_VARS_INPUT+1 
+			CALL Parse_Hex16
+			LD A,(HL)
+			CP ','
+			JR NZ,2F
+			INC HL
+			PUSH DE
+			CALL Parse_Hex16
+			POP HL  
+			LD B,D 
+			LD C,E 
+			LD IX,SYS_VARS_INPUT
+			LD A,B 
+			OR C 
+			JP NZ,Disassemble 
+2:			LD HL,MSG_ERROR
+			JP Print_String
+
 FN_Memory_Dump:		LD HL,SYS_VARS_INPUT+1
 			CALL Parse_Hex16
 			LD A,(HL)
@@ -237,7 +210,7 @@ Print_String:		LD A,(HL)
 			RET Z
 			RST 16
 			INC HL
-			JP Print_String 
+			JR Print_String 
 
 ; Dump some ports out
 ;  C: Port
@@ -306,27 +279,37 @@ Memory_Dump:		CALL Print_Hex16
 			POP HL
 			RET
 
+; Parse a hex string (up to 2 nibbles) to a binary
+; HL: Address of hex (ASCII)
+;  E: Output
+;
+Parse_Hex8:		LD DE,0
+			LD B,2
+			JR Parse_Hex
+
 ; Parse a hex string (up to 4 nibbles) to a binary
 ; HL: Address of hex (ASCII)
 ; DE: Output
 ;
 Parse_Hex16:		LD DE,0			; Clear the output
-1:			LD A,(HL)		; Get the nibble
+			LD B,4			; Maximum number of nibbles
+Parse_Hex:		LD A,(HL)		; Get the nibble
 			SUB '0'			; Normalise to 0
 			RET C			; Return if < ASCII '0'
 			CP 10			; Check if >= 10
-			JR C,2F
+			JR C,1F
 			SUB 7			; Adjust ASCII A-F to nibble
 			CP 16			; Check for > F
 			RET NC			; Return
-2:			SLA DE 			; Shfit DE left 4 times
+1:			SLA DE 			; Shfit DE left 4 times
 			SLA DE 
 			SLA DE
 			SLA DE 
 			OR E			; OR the nibble into E
 			LD E,A 
 			INC HL 			; Increase pointer to next byte of input
-			JR 1B			; Loop around
+			DJNZ Parse_Hex		; Loop around
+			RET
 
 ; Print a 16-bit HEX number
 ; HL: Number to print
@@ -375,7 +358,7 @@ Read_Char:		IN A,(PORT_STM_FLAGS)
 			JR Z,Read_Char
 Read_Char_NB:		IN A,(PORT_STM_IO)
 			RET 
-
+;			
 ; Messages
 ;
 MSG_STARTUP:		DZ "BSX Version 0.1\n\r"
@@ -385,4 +368,5 @@ MSG_ERROR:		DZ "Error\n\r"
 MSG_INVALID_CMD:	DZ "Invalid Command\n\r"
 MSG_INVALID_PORT:	DZ "Invalid Port #\n\r"
 MSG_OUT_OF_RANGE:	DZ "Value out of range\n\r"
+
 
