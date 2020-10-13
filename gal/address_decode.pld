@@ -1,0 +1,24 @@
+GAL22V10
+BSX Address Decoder
+
+MREQ 	IOREQ	A15		A14		A7		A6		A5		A4		A3		A2		A1		GND	; P01-P12 (Inputs)
+CPUR	RAMS	ROMS	UARTS	UARTR	NC		NC		NC		NC		NC		STM32	VCC	; P13-P24 (Outputs, P13 = Input)
+
+/RAMS	= /MREQ  *  A15		; RAM select is low if MREQ is low and A15 is high
+/ROMS	= /MREQ  * /A15		; ROM select is low if MREQ is low and A15 is low
+ 
+/STM32  = /IOREQ * /A7 * /A6 * /A5 * /A4 * /A3						; STM32 (Temporary) on port 0x00 to 0x07
+/UARTS	= /IOREQ *  A7 * /A6 * /A5 * /A4 * /A3						; 82C50A UART on ports 0x80 to 0x87
+/UARTR	=  CPUR	 													; UART reset is low if CPU reset is high
+
+DESCRIPTION
+Address line decoding for the BSX	
+A0-14:	Z80 address lines
+CPUR:	Z80 reset line (active low)
+RAMS: 	RAM CS (active low)
+ROMS: 	ROM CS (active low)
+UARTS:	UART CS2 (active low)
+UARTR:	Inverted reset line for 16C550 UART (active high)
+STM32:	STM32 Blue Pill (active low)
+
+IMPORTANT: When programming using TL866II+, make sure to turn "Encrypt Chip" off
