@@ -2,12 +2,13 @@
 ; Title:	Z80 Disassembler for BSX
 ; Author:	Dean Belfield
 ; Created:	03/06/2020
-; Last Updated:	03/06/2020
+; Last Updated:	05/10/2020
 ;
 ; Based upon information in http://www.z80.info/decoding.htm
 ;
 ; Modinfo:
-;
+; 06/06/2020:	Output formatting tweaks
+; 05/10/2020:	Added UART support
 
 ;
 ; Macros
@@ -133,7 +134,8 @@ Disassemble:		LD 	A,IXL			; Point IY to the disassembly text address
 			LD	A,(IX+0): LD L,A	; First the address
 			LD	A,(IX+1): LD H,A
 			CALL 	Print_Hex16
-			LD	A," ": RST 16
+			LD	A,":": CALL Print_Char
+			LD	A," ": CALL Print_Char
 			CALL	Print_Opcodes
 			LD	A,IYL: LD L,A 		; And finally the disassembly
 			LD	A,IYH: LD H,A 
@@ -158,7 +160,7 @@ Print_Opcodes:		LD	B,(IX+2)		; Number of bytes in this instruction
 1:			LD	A,(HL)			; Fetch the byte from memory
 			CALL	Print_Hex8		; Output an 8 digit hex code
 			LD	A," "			; Pad with a space
-			RST	16
+			CALL	Print_Char
 			INC	HL
 			DJNZ	1B
 			LD	A,4			; Need to pad this out
@@ -169,8 +171,8 @@ Print_Opcodes:		LD	B,(IX+2)		; Number of bytes in this instruction
 			SLA	A
 			ADD	A,B 
 			LD	B,A			; Store in loop counter, and pad
-2:			LD	A," ": RST 16
-			DJNZ 2B	
+2:			LD	A," ": CALL Print_Char
+			DJNZ 	2B	
 			RET 
 
 ; Disassemble a single op code
