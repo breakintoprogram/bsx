@@ -12,5 +12,4 @@ Programming GALs can be a bit fiddly:
 - Make sure that when burning the option to encrypt the chip is turned off
 - Mileage with other 22V10 GALs and EPROM burners may vary
 
-Link to my webpage with tips on using GALasm here
-http://www.breakintoprogram.co.uk/projects/homebrew-z80/homebrew-z80-computer-part-5
+Link to my webpage with tips on using GALasm [here][http://www.breakintoprogram.co.uk/projects/homebrew-z80/homebrew-z80-computer-part-5]
