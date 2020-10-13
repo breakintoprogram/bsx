@@ -11,4 +11,4 @@ It is a work-in-progress, and the current specs are:
 The intention is to work towards a fully functioning MSX1 clone on a breadboard, with a TMS9918 video chip and AY-8912 sound
 #### What's provided
 I am providing all the files under an MIT license for the hardware and the software, with the following exceptions:
-- BBC Basic: This is provided under a zlib license by R.T.Russell
+- BBC Basic: This is provided under the terms of a [zlib license](https://opensource.org/licenses/Zlib) by R.T.Russell
