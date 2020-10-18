@@ -2,13 +2,26 @@
 ; Title:	BBC Basic for BSX - Main build file
 ; Author:	Dean Belfield
 ; Created:	16/05/2020
-; Last Updated:	20/05/2020
+; Last Updated:	08/10/2020
 ;
 ; Modinfo:
 ;
-			ORG 0x9000
+; 08/10/2020:	Minor mods to support UART
+
+ROM_START		EQU 	0x0000			
+RAM_START		EQU 	0x8000
+
+PORT_STM_FILE		EQU	0x01			; The IO port for the SD card filing system
+
+BUILD_ROM		EQU 	1			; Set to 1 to build for ROM, or 0 to build for RAM
 
 			MODULE BUILD
+
+			IF BUILD_ROM == 0
+			ORG RAM_START
+			ELSE
+			ORG ROM_START+0x4000
+			ENDIF
 
 			CALL    TELL
 			DEFM	"BSX Breadboard Computer 0.1\n\r"
